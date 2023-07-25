@@ -2,6 +2,7 @@
 
 import argparse
 import random
+import sys
 import subprocess
 import math
 from pathlib import Path
@@ -14,7 +15,9 @@ def arguments():
 
     parser.add_argument("-n", "--size", type=int, help="Size of final output metagenome")
 
-    parser.add_argument("-i", "--illumina", nargs=3, action="append", metavar=("FWD", "REV", "PROB"), help="Paths to a pair of reads and the proportion of the final data they should constitute")
+    parser.add_argument("-i", "--illumina", required = True, nargs=3, action="append", metavar=("FWD", "REV", "PROB"), help="Paths to a pair of reads and the proportion of the final data they should constitute")
+
+    parser.add_argument("-o", "--output", required = True, type=Path, help = "Output directory")
 
     args = parser.parse_args()
 
@@ -25,7 +28,7 @@ def main():
 
     args = arguments()
 
-    
+    construct_illumina_metagenome(args.illumina, args.size, args.output, args.seed)
 
 
 def calculate_required_read_count(total: int, proportion_of_total: float) -> int:
