@@ -44,7 +44,7 @@ def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
     
     shuffled = subprocess.run(shuffle_cmd, capture_output=True, text=True)
 
-    head_cmd = ("seqkit", "head", "-n", required_reads)
+    head_cmd = ("seqkit", "head", "-n", str(required_reads))
 
     selected_reads = subprocess.run(head_cmd, capture_output=True, text=True, input=shuffled.stdout)
 
