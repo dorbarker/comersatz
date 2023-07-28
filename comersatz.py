@@ -40,7 +40,7 @@ def calculate_required_read_count(total: int, proportion_of_total: float) -> int
 
 def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
     
-    shuffle_cmd = ("seqkit", "sample", "--rand-seed", str(seed), reads)
+    shuffle_cmd = ("seqkit", "sample", "--rand-seed", str(seed), "-p", "1.0", reads)
     
     shuffled = subprocess.run(shuffle_cmd, capture_output=True, text=True)
 
@@ -52,6 +52,8 @@ def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
 
 
 def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir, seed):
+
+    outdir.mkdir(parents=True, exists_ok=True)
 
     out_fwd, out_rev = (outdir.joinpath(x).with_suffix(".fastq") for x in ("fwd", "rev"))
 
