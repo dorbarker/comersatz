@@ -55,7 +55,7 @@ def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
 
     proportion_required = min(1.0, (required_reads / approximate_total_reads) * 1.5)
 
-    shuffle_cmd = (
+    sample_cmd = (
         "seqkit",
         "sample",
         "--rand-seed",
@@ -65,15 +65,23 @@ def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
         reads,
     )
 
-    shuffled = subprocess.run(shuffle_cmd, capture_output=True, text=True)
+    sampled = subprocess.run(shuffle_cmd, capture_output=True, text=True)
 
     head_cmd = ("seqkit", "head", "-n", str(required_reads))
 
     selected_reads = subprocess.run(
-        head_cmd, capture_output=True, text=True, input=shuffled.stdout
+        head_cmd, capture_output=True, text=True, input=sampled.stdout
     )
 
     return selected_reads.stdout
+
+
+def shuffle_reads(reads: str, seed: int = 11) -> str:
+    shuffle_cmd = ("seqkit", "shuffle", "--rand-seed", str(seed))
+
+    shuffled = subprocess.run(shuffle_cmd, capture_output=True, text=True, input=reads)
+
+    return shuffled.stdout
 
 
 def estimate_read_count(reads: Path, assumption_length: int = 150):
@@ -91,15 +99,20 @@ def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir,
         outdir.joinpath(x).with_suffix(".fastq") for x in ("fwd", "rev")
     )
 
+    out_fwd_reads, out_rev_reads = [], []
+
     for fwd, rev, prob in illumina_triplets:
         desired_reads = calculate_required_read_count(total_output_reads, prob)
 
-        fwd_sample = sample_reads(fwd, desired_reads, seed)
-        rev_sample = sample_reads(rev, desired_reads, seed)
+        out_fwd_reads.append(sample_reads(fwd, desired_reads, seed))
+        out_rev_reads.append(sample_reads(rev, desired_reads, seed))
 
-        with out_fwd.open("a") as f, out_rev.open("a") as r:
-            f.write(fwd_sample)
-            r.write(rev_sample)
+    fwd_reads = shuffle_reads("\n".join(out_fwd_reads), seed)
+    rev_reads = shuffle_reads("\n".join(out_rev_reads), seed)
+
+    with out_fwd.open("w") as f, out_rev.open("w") as r:
+        f.write(fwd_reads)
+        r.write(rev_reads)
 
 
 def rename_illumina_reads(read_triplet):
