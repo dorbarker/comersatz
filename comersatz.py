@@ -53,7 +53,7 @@ def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
 
 def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir, seed):
 
-    outdir.mkdir(parents=True, exists_ok=True)
+    outdir.mkdir(parents=True, exist_ok=True)
 
     out_fwd, out_rev = (outdir.joinpath(x).with_suffix(".fastq") for x in ("fwd", "rev"))
 
