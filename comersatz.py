@@ -51,7 +51,19 @@ def calculate_required_read_count(total: int, proportion_of_total: float) -> int
 
 
 def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
-    shuffle_cmd = ("seqkit", "sample", "--rand-seed", str(seed), "-p", "1.0", reads)
+    approximate_total_reads = estimate_read_count(reads)
+
+    proportion_required = min(1.0, (required_reads / approximate_total_reads) * 1.5)
+
+    shuffle_cmd = (
+        "seqkit",
+        "sample",
+        "--rand-seed",
+        str(seed),
+        "-p",
+        str(proportion_required),
+        reads,
+    )
 
     shuffled = subprocess.run(shuffle_cmd, capture_output=True, text=True)
 
@@ -62,6 +74,14 @@ def sample_reads(reads: Path, required_reads: int, seed: int = 11) -> str:
     )
 
     return selected_reads.stdout
+
+
+def estimate_read_count(reads: Path, assumption_length: int = 150):
+    size_bytes = reads.stat().st_size
+
+    approx_n_reads = (size_bytes / assumption_length) // 2
+
+    return approx_n_reads
 
 
 def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir, seed):
