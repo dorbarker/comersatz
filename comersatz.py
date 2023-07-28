@@ -20,7 +20,9 @@ def arguments():
     parser.add_argument("-o", "--output", required = True, type=Path, help = "Output directory")
 
     args = parser.parse_args()
-
+    
+    args.illumina = [[Path(fwd), Path(rev), float(prob)] for (fwd, rev, prob) in args.illumina]
+    
     return args
 
 
