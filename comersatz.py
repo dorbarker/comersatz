@@ -35,6 +35,12 @@ def arguments():
         "-o", "--output", required=True, type=Path, help="Output directory"
     )
 
+    parser.add_argument(
+        "--no-rename",
+        action="store_true",
+        help="Do not rename the output FASTQ files with faked headers",
+    )
+
     args = parser.parse_args()
 
     args.illumina = [
@@ -47,7 +53,9 @@ def arguments():
 def main():
     args = arguments()
 
-    construct_illumina_metagenome(args.illumina, args.size, args.output, args.seed)
+    construct_illumina_metagenome(
+        args.illumina, args.size, args.output, not args.no_rename, args.seed
+    )
 
 
 def calculate_required_read_count(total: int, proportion_of_total: float) -> int:
@@ -124,7 +132,7 @@ def select_illumina_reads(
 
 
 def postprocess_illumina_reads(
-    selected_reads: list[SeqIO.SeqRecord], orientation: str, seed: int
+    selected_reads: list[SeqIO.SeqRecord], orientation: str, rename: bool, seed: int
 ) -> list[SeqIO.SeqRecord]:
     if orientation == "fwd":
         orientation_num = 1
@@ -134,15 +142,19 @@ def postprocess_illumina_reads(
         raise ValueError(f"{orientation} is not a valid read orientation")
 
     shuffled = shuffle_reads(*selected_reads, seed=seed)
-    renamed = [
-        fake_illumina_name(record, idx, orientation_num)
-        for idx, record in enumerate(shuffled, 1)
-    ]
+    if rename:
+        renamed = [
+            fake_illumina_name(record, idx, orientation_num)
+            for idx, record in enumerate(shuffled, 1)
+        ]
+        return renamed
+    else:
+        return shuffled
 
-    return renamed
 
-
-def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir, seed):
+def construct_illumina_metagenome(
+    illumina_triplets, total_output_reads, outdir, rename, seed
+):
     outdir.mkdir(parents=True, exist_ok=True)
 
     out_fwd, out_rev = (
@@ -162,8 +174,8 @@ def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir,
             select_illumina_reads(rev, desired_reads, input_read_count, seed)
         )
 
-    fwd_reads = postprocess_illumina_reads(out_fwd_reads, "fwd", seed)
-    rev_reads = postprocess_illumina_reads(out_rev_reads, "rev", seed)
+    fwd_reads = postprocess_illumina_reads(out_fwd_reads, "fwd", rename, seed)
+    rev_reads = postprocess_illumina_reads(out_rev_reads, "rev", rename, seed)
 
     with out_fwd.open("w") as f, out_rev.open("w") as r:
         SeqIO.write(fwd_reads, f, "fastq")
