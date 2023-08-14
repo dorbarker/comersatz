@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 
 import argparse
+import collections
+import gzip
+import itertools
 import math
+import mimetypes
 import random
-import subprocess
-import sys
 from pathlib import Path
+
+from Bio import SeqIO
 
 
 def arguments():
@@ -50,61 +54,48 @@ def calculate_required_read_count(total: int, proportion_of_total: float) -> int
     return math.floor(total * proportion_of_total) or 1
 
 
-def sample_reads(reads: Path, required_reads: int, paired_read_names: list[str], seed: int = 11) -> str:
-    approximate_total_reads = estimate_read_count(reads)
-
-    proportion_required = min(1.0, (required_reads / approximate_total_reads) * 1.5)
-
-    grep_cmd = ("seqkit", "grep", "-f", "-", reads)
-
-    grepped_reads = subprocess.run(grep_cmd, capture_output=True, text=True, input="\n".join(paired_read_names))
-
-    sample_cmd = (
-        "seqkit",
-        "sample",
-        "--rand-seed",
-        str(seed),
-        "-p",
-        str(proportion_required)
-    )
-
-    sampled = subprocess.run(sample_cmd, capture_output=True, text=True, input=grepped_reads)
-
-    head_cmd = ("seqkit", "head", "-n", str(required_reads))
-
-    selected_reads = subprocess.run(
-        head_cmd, capture_output=True, text=True, input=sampled.stdout
-    )
-
-    return selected_reads.stdout
-
-
-def shuffle_reads(reads: str, seed: int = 11) -> str:
-    shuffle_cmd = ("seqkit", "shuffle", "--rand-seed", str(seed))
-
-    shuffled = subprocess.run(shuffle_cmd, capture_output=True, text=True, input=reads)
-
-    return shuffled.stdout
-
-def get_paired_read_names(fwd: Path, rev: Path) -> list[str]:
-    
-    fwd_names = get_read_names(fwd)
-    rev_names = get_read_names(rev)
-
-    return sorted(set(fwd_names).intersection(set(rev_names)))
-
-def get_read_names(reads: Path) -> list[str]:
-
-    cmd = ("seqkit", "--name", "--only-id", reads)
-
-    return subprocess.run(cmd, text=True, capture_output=True).stdout.splitlines()
-
 def estimate_read_count(reads: Path, assumption_length: int = 150):
     size_bytes = reads.stat().st_size
 
     approx_n_reads = (size_bytes / assumption_length) // 2
 
     return approx_n_reads
+
+
+def determine_read_count(reads: Path):
+    _open = gzip.open if mimetypes.guess_type(reads)[1] == "gzip" else open
+
+    with _open(reads, "rt") as f:
+        records = SeqIO.parse(f, "fastq")
+        last = collections.deque(enumerate(records), maxlen=1)[0]
+        idx, _ = last
+    return idx
+
+
+def determine_selections(read_count: int, desired_reads: int, seed: int):
+    indices = list(range(read_count))
+    random.seed(seed)
+    selected_indices = set(random.sample(indices, desired_reads))
+    return selected_indices
+
+
+def select_reads(reads: Path, selected_indices: list[int]) -> list[SeqIO.SeqRecord]:
+    _open = gzip.open if mimetypes.guess_type(reads)[1] == "gzip" else open
+
+    with _open(reads, "rt") as f:
+        indexed_reads = enumerate(SeqIO.parse(f, "fastq"))
+        selected = list(
+            filter(lambda idx_rec: idx_rec[0] in selected_indices, indexed_reads)
+        )
+
+    return selected
+
+
+def shuffle_reads(*reads, seed: int) -> list[SeqIO.SeqRecord]:
+    merged = list(itertools.chain.from_iterable(reads))
+    random.seed(seed)
+    random.shuffle(merged)
+    return [seqrec for (idx, seqrec) in merged]
 
 
 def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir, seed):
@@ -118,18 +109,21 @@ def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir,
 
     for fwd, rev, prob in illumina_triplets:
         desired_reads = calculate_required_read_count(total_output_reads, prob)
+        input_read_count = determine_read_count(fwd)  # should be identical for rev
+        selected_indices = determine_selections(input_read_count, desired_reads, seed)
 
-        paired_read_names = get_paired_read_names(fwd, rev)
+        fwd_reads = select_reads(fwd, selected_indices)
+        rev_reads = select_reads(rev, selected_indices)
 
-        out_fwd_reads.append(sample_reads(fwd, desired_reads, seed))
-        out_rev_reads.append(sample_reads(rev, desired_reads, seed))
+        out_fwd_reads.append(fwd_reads)
+        out_rev_reads.append(rev_reads)
 
-    fwd_reads = shuffle_reads("\n".join(out_fwd_reads), seed)
-    rev_reads = shuffle_reads("\n".join(out_rev_reads), seed)
+    shuffled_fwd_reads = shuffle_reads(*out_fwd_reads, seed=seed)
+    shuffled_rev_reads = shuffle_reads(*out_rev_reads, seed=seed)
 
     with out_fwd.open("w") as f, out_rev.open("w") as r:
-        f.write(fwd_reads)
-        r.write(rev_reads)
+        SeqIO.write(shuffled_fwd_reads, f, "fastq")
+        SeqIO.write(shuffled_rev_reads, r, "fastq")
 
 
 def rename_illumina_reads(read_triplet):
