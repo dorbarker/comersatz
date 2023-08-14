@@ -2,6 +2,7 @@
 
 import argparse
 import collections
+import csv
 import gzip
 import itertools
 import math
@@ -115,10 +116,12 @@ def fake_illumina_name(
         f"SIM:001:112358:{idx}:{idx:05}:{idx:05}:{idx:05} {read_number}:N:0:GATTACA"
     )
 
+    old_id = record.id
+
     record.id = record.name = fake_name
     record.description = ""
 
-    return record
+    return old_id, fake_name, record
 
 
 def select_illumina_reads(
@@ -143,13 +146,17 @@ def postprocess_illumina_reads(
 
     shuffled = shuffle_reads(*selected_reads, seed=seed)
     if rename:
-        renamed = [
-            fake_illumina_name(record, idx, orientation_num)
-            for idx, record in enumerate(shuffled, 1)
-        ]
-        return renamed
+        oldnames, newnames, seqrecords = zip(
+            *[
+                fake_illumina_name(record, idx, orientation_num)
+                for idx, record in enumerate(shuffled, 1)
+            ]
+        )
+        lookup = list(zip(oldnames, newnames))
+        return seqrecords, lookup
     else:
-        return shuffled
+        lookup = []
+        return shuffled, lookup
 
 
 def construct_illumina_metagenome(
@@ -174,12 +181,18 @@ def construct_illumina_metagenome(
             select_illumina_reads(rev, desired_reads, input_read_count, seed)
         )
 
-    fwd_reads = postprocess_illumina_reads(out_fwd_reads, "fwd", rename, seed)
-    rev_reads = postprocess_illumina_reads(out_rev_reads, "rev", rename, seed)
+    fwd_reads, lookup = postprocess_illumina_reads(out_fwd_reads, "fwd", rename, seed)
+    rev_reads, lookup = postprocess_illumina_reads(out_rev_reads, "rev", rename, seed)
 
     with out_fwd.open("w") as f, out_rev.open("w") as r:
         SeqIO.write(fwd_reads, f, "fastq")
         SeqIO.write(rev_reads, r, "fastq")
+
+    if lookup:
+        with outdir.joinpath("fastq_lookup.tsv") as l:
+            writer = csv.writer(delimiter="\t")
+            for row in lookup:
+                writer.writerow(row)
 
 
 if __name__ == "__main__":
