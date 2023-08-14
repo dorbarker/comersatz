@@ -7,7 +7,6 @@ import itertools
 import math
 import mimetypes
 import random
-import subprocess
 from pathlib import Path
 
 from Bio import SeqIO
@@ -53,54 +52,6 @@ def main():
 
 def calculate_required_read_count(total: int, proportion_of_total: float) -> int:
     return math.floor(total * proportion_of_total) or 1
-
-
-def sample_reads(
-    reads: Path, required_reads: int, paired_read_names: list[str], seed: int = 11
-) -> str:
-    approximate_total_reads = estimate_read_count(reads)
-
-    proportion_required = min(1.0, (required_reads / approximate_total_reads) * 1.5)
-    print(proportion_required)
-    grep_cmd = ("seqkit", "grep", "-f", "-", reads)
-
-    grepped_reads = subprocess.run(
-        grep_cmd, capture_output=True, text=True, input="\n".join(paired_read_names)
-    )
-
-    sample_cmd = (
-        "seqkit",
-        "sample",
-        "--rand-seed",
-        str(seed),
-        "-p",
-        str(proportion_required),
-    )
-
-    sampled = subprocess.run(
-        sample_cmd, capture_output=True, text=True, input=grepped_reads
-    )
-
-    head_cmd = ("seqkit", "head", "-n", str(required_reads))
-
-    selected_reads = subprocess.run(
-        head_cmd, capture_output=True, text=True, input=sampled.stdout
-    )
-
-    return selected_reads.stdout
-
-
-def get_paired_read_names(fwd: Path, rev: Path) -> list[str]:
-    fwd_names = get_read_names(fwd)
-    rev_names = get_read_names(rev)
-
-    return sorted(set(fwd_names).intersection(set(rev_names)))
-
-
-def get_read_names(reads: Path) -> list[str]:
-    cmd = ("seqkit", "--name", "--only-id", reads)
-
-    return subprocess.run(cmd, text=True, capture_output=True).stdout.splitlines()
 
 
 def estimate_read_count(reads: Path, assumption_length: int = 150):
