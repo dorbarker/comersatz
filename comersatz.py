@@ -101,7 +101,7 @@ def shuffle_reads(*reads, seed: int) -> list[SeqIO.SeqRecord]:
 def fake_illumina_name(
     record: SeqIO.SeqRecord, idx: int, read_number: int
 ) -> SeqIO.SeqRecord:
-    assert read_number is 1 or read_number is 2
+    assert read_number in (1, 2)
 
     fake_name = (
         f"SIM:001:112358:{idx}:{idx:05}:{idx:05}:{idx:05} {read_number}:N:0:GATTACA"
@@ -136,7 +136,7 @@ def postprocess_illumina_reads(
     shuffled = shuffle_reads(*selected_reads, seed=seed)
     renamed = [
         fake_illumina_name(record, idx, orientation_num)
-        for idx, record in enumerate(shuffled)
+        for idx, record in enumerate(shuffled, 1)
     ]
 
     return renamed
