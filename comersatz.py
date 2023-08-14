@@ -98,6 +98,21 @@ def shuffle_reads(*reads, seed: int) -> list[SeqIO.SeqRecord]:
     return [seqrec for (idx, seqrec) in merged]
 
 
+def fake_illumina_name(
+    record: SeqIO.SeqRecord, idx: int, read_number: int
+) -> SeqIO.SeqRecord:
+    assert read_number is 1 or read_number is 2
+
+    fake_name = (
+        f"SIM:001:112358:{idx}:{idx:05}:{idx:05}:{idx:05} {read_number}:N:0:GATTACA"
+    )
+
+    record.id = record.name = fake_name
+    record.description = ""
+
+    return record
+
+
 def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir, seed):
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -121,14 +136,18 @@ def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir,
     shuffled_fwd_reads = shuffle_reads(*out_fwd_reads, seed=seed)
     shuffled_rev_reads = shuffle_reads(*out_rev_reads, seed=seed)
 
+    renamed_fwd_reads = [
+        fake_illumina_name(record, idx, 1)
+        for idx, record in enumerate(shuffled_fwd_reads)
+    ]
+    renamed_fwd_reads = [
+        fake_illumina_name(record, idx, 2)
+        for idx, record in enumerate(shuffled_rev_reads)
+    ]
+
     with out_fwd.open("w") as f, out_rev.open("w") as r:
-        SeqIO.write(shuffled_fwd_reads, f, "fastq")
-        SeqIO.write(shuffled_rev_reads, r, "fastq")
-
-
-def rename_illumina_reads(read_triplet):
-    # TODO add this later; not necessary for mvp
-    pass
+        SeqIO.write(renamed_fwd_reads, f, "fastq")
+        SeqIO.write(renamed_fwd_reads, r, "fastq")
 
 
 if __name__ == "__main__":
