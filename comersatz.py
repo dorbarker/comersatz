@@ -133,7 +133,7 @@ def postprocess_illumina_reads(
     else:
         raise ValueError(f"{orientation} is not a valid read orientation")
 
-    shuffled = shuffle_reads(*select_reads, seed=seed)
+    shuffled = shuffle_reads(*selected_reads, seed=seed)
     renamed = [
         fake_illumina_name(record, idx, orientation_num)
         for idx, record in enumerate(shuffled)
