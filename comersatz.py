@@ -189,8 +189,8 @@ def construct_illumina_metagenome(
         SeqIO.write(rev_reads, r, "fastq")
 
     if lookup:
-        with outdir.joinpath("fastq_lookup.tsv") as l:
-            writer = csv.writer(delimiter="\t")
+        with outdir.joinpath("fastq_lookup.tsv") as lookup_file:
+            writer = csv.writer(lookup_file, delimiter="\t")
             for row in lookup:
                 writer.writerow(row)
 
