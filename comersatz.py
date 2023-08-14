@@ -113,6 +113,35 @@ def fake_illumina_name(
     return record
 
 
+def select_illumina_reads(
+    reads: Path, desired_reads: int, read_count: int, seed: int
+) -> list[SeqIO.SeqRecord]:
+    indices = determine_selections(read_count, desired_reads, seed)
+
+    selected_reads = select_reads(reads, indices)
+
+    return selected_reads
+
+
+def postprocess_illumina_reads(
+    selected_reads: list[SeqIO.SeqRecord], orientation: str, seed: int
+) -> list[SeqIO.SeqRecord]:
+    if orientation == "fwd":
+        orientation_num = 1
+    elif orientation == "rev":
+        orientation_num = 2
+    else:
+        raise ValueError(f"{orientation} is not a valid read orientation")
+
+    shuffled = shuffle_reads(*select_reads, seed=seed)
+    renamed = [
+        fake_illumina_name(record, idx, orientation_num)
+        for idx, record in enumerate(shuffled)
+    ]
+
+    return renamed
+
+
 def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir, seed):
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -125,29 +154,20 @@ def construct_illumina_metagenome(illumina_triplets, total_output_reads, outdir,
     for fwd, rev, prob in illumina_triplets:
         desired_reads = calculate_required_read_count(total_output_reads, prob)
         input_read_count = determine_read_count(fwd)  # should be identical for rev
-        selected_indices = determine_selections(input_read_count, desired_reads, seed)
 
-        fwd_reads = select_reads(fwd, selected_indices)
-        rev_reads = select_reads(rev, selected_indices)
+        out_fwd_reads.append(
+            select_illumina_reads(fwd, desired_reads, input_read_count, seed)
+        )
+        out_rev_reads.append(
+            select_illumina_reads(rev, desired_reads, input_read_count, seed)
+        )
 
-        out_fwd_reads.append(fwd_reads)
-        out_rev_reads.append(rev_reads)
-
-    shuffled_fwd_reads = shuffle_reads(*out_fwd_reads, seed=seed)
-    shuffled_rev_reads = shuffle_reads(*out_rev_reads, seed=seed)
-
-    renamed_fwd_reads = [
-        fake_illumina_name(record, idx, 1)
-        for idx, record in enumerate(shuffled_fwd_reads)
-    ]
-    renamed_fwd_reads = [
-        fake_illumina_name(record, idx, 2)
-        for idx, record in enumerate(shuffled_rev_reads)
-    ]
+    fwd_reads = postprocess_illumina_reads(out_fwd_reads, "fwd", seed)
+    rev_reads = postprocess_illumina_reads(out_rev_reads, "rev", seed)
 
     with out_fwd.open("w") as f, out_rev.open("w") as r:
-        SeqIO.write(renamed_fwd_reads, f, "fastq")
-        SeqIO.write(renamed_fwd_reads, r, "fastq")
+        SeqIO.write(fwd_reads, f, "fastq")
+        SeqIO.write(rev_reads, r, "fastq")
 
 
 if __name__ == "__main__":
