@@ -116,7 +116,7 @@ def fake_illumina_name(
         f"SIM:001:112358:{idx}:{idx:05}:{idx:05}:{idx:05} {read_number}:N:0:GATTACA"
     )
 
-    old_id = record.id
+    old_id = f"{record.id} {record.description}".strip()
 
     record.id = record.name = fake_name
     record.description = ""
@@ -181,8 +181,8 @@ def construct_illumina_metagenome(
             select_illumina_reads(rev, desired_reads, input_read_count, seed)
         )
 
-    fwd_reads, lookup = postprocess_illumina_reads(out_fwd_reads, "fwd", rename, seed)
-    rev_reads, lookup = postprocess_illumina_reads(out_rev_reads, "rev", rename, seed)
+    fwd_reads, fwd_lookup = postprocess_illumina_reads(out_fwd_reads, "fwd", rename, seed)
+    rev_reads, rev_lookup = postprocess_illumina_reads(out_rev_reads, "rev", rename, seed)
 
     with out_fwd.open("w") as f, out_rev.open("w") as r:
         SeqIO.write(fwd_reads, f, "fastq")
@@ -191,7 +191,7 @@ def construct_illumina_metagenome(
     if lookup:
         with outdir.joinpath("fastq_lookup.tsv").open("w") as lookup_file:
             writer = csv.writer(lookup_file, delimiter="\t")
-            for row in lookup:
+            for row in itertools.chain(fwd_lookup, rev_lookup):
                 writer.writerow(row)
 
 
