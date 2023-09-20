@@ -116,7 +116,7 @@ def fake_illumina_name(
         f"SIM:001:112358:{idx}:{idx:05}:{idx:05}:{idx:05} {read_number}:N:0:GATTACA"
     )
 
-    old_id = record.id
+    old_id = f"{record.id} {record.description}".strip()
 
     record.id = record.name = fake_name
     record.description = ""
