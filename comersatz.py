@@ -84,7 +84,10 @@ def determine_read_count(reads: Path):
 def determine_selections(read_count: int, desired_reads: int, seed: int):
     indices = list(range(read_count))
     random.seed(seed)
-    selected_indices = set(random.sample(indices, desired_reads))
+    try:
+        selected_indices = set(random.sample(indices, desired_reads))
+    except ValueError:
+        selected_indices = set(indices)
     return selected_indices
 
 
@@ -171,7 +174,7 @@ def construct_illumina_metagenome(
     out_fwd_reads, out_rev_reads = [], []
 
     for fwd, rev, prob in illumina_triplets:
-        desired_reads = calculate_required_read_count(total_output_reads, prob)
+        desired_reads = min(total_output_reads, calculate_required_read_count(total_output_reads, prob))
         input_read_count = determine_read_count(fwd)  # should be identical for rev
 
         out_fwd_reads.append(
